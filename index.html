@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -46,12 +47,17 @@
       margin-bottom: 20px;
     }
 
-    button {
-      padding: 10px 20px;
+    button, input {
+      padding: 10px;
       font-size: 16px;
       border-radius: 10px;
       border: none;
-      cursor: pointer;
+      margin: 5px;
+    }
+
+    input {
+      width: 60%;
+      max-width: 300px;
     }
 
     .dark-mode {
@@ -72,6 +78,12 @@
       <button onclick="toggleMode()">Toggle Dark/Light Mode</button>
     </div>
 
+    <div class="toggle">
+      <input type="text" id="cityInput" placeholder="Enter city..." />
+      <button onclick="changeCity()">Search</button>
+      <button onclick="getLocation()">Use My Location</button>
+    </div>
+
     <h1>Weather Dashboard</h1>
 
     <div class="weather-info" id="weatherInfo">
@@ -84,35 +96,36 @@
 
     <div class="radar">
       <h2>Live Radar</h2>
-      <iframe
-        height="450"
-        src="https://embed.windy.com/embed2.html?lat=28.6934&lon=-81.5322&detailLat=28.6934&detailLon=-81.5322&zoom=8&level=surface&overlay=radar&menu=&message=true&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1">
-      </iframe>
+      <iframe id="radarFrame" height="450"></iframe>
     </div>
   </div>
 
   <script>
-    // Light/Dark Mode Toggle
+    const apiKey = "156ae177cef40f92941f517eff216625";
+    let city = localStorage.getItem('lastCity') || "Apopka";
+
     function toggleMode() {
       document.body.classList.toggle('dark-mode');
     }
 
-    // Load saved theme
     if (localStorage.getItem('theme') === 'dark') {
       document.body.classList.add('dark-mode');
     }
 
-    // Save theme on toggle
     document.querySelector('button').addEventListener('click', () => {
       const isDark = document.body.classList.contains('dark-mode');
       localStorage.setItem('theme', isDark ? 'dark' : 'light');
     });
 
-    // Weather API Fetch
-    const apiKey = "156ae177cef40f92941f517eff216625"; // Your OpenWeatherMap API key
-    const city = "Apopka";
+    function updateRadar(lat, lon) {
+      const radarUrl = `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&detailLat=${lat}&detailLon=${lon}&zoom=8&level=surface&overlay=radar&menu=&message=true&marker=&calendar=now&pressure=&type=map&location=coordinates&metricWind=default&metricTemp=default&radarRange=-1`;
+      document.getElementById('radarFrame').src = radarUrl;
+    }
 
     function fetchWeather() {
+      document.getElementById('weatherInfo').innerHTML = "<p>Loading current weather...</p>";
+      document.getElementById('forecast').innerHTML = "<p>Loading 5-day forecast...</p>";
+
       fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=imperial`)
         .then(res => res.json())
         .then(data => {
@@ -123,6 +136,7 @@
             <p>Humidity: ${data.main.humidity}%</p>
             <p>Wind: ${data.wind.speed} mph</p>
           `;
+          updateRadar(data.coord.lat, data.coord.lon);
         });
 
       fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=${apiKey}&units=imperial`)
@@ -140,9 +154,46 @@
             `;
           });
         });
+
+      document.getElementById('cityInput').value = city;
     }
 
-    fetchWeather();
+    function changeCity() {
+      const input = document.getElementById('cityInput').value;
+      if (input) {
+        city = input;
+        localStorage.setItem('lastCity', city);
+        fetchWeather();
+      }
+    }
+
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+          const { latitude, longitude } = position.coords;
+
+          // Reverse geocode to get city name from coordinates
+          fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=imperial`)
+            .then(res => res.json())
+            .then(data => {
+              city = data.name;
+              localStorage.setItem('lastCity', city);
+              fetchWeather();
+            });
+
+          updateRadar(latitude, longitude);
+        }, error => {
+          alert("Location access denied. Please enter a city manually.");
+        });
+      } else {
+        alert("Geolocation not supported by this browser.");
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById('cityInput').value = city;
+      fetchWeather();
+    });
   </script>
 </body>
 </html>
