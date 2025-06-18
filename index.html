@@ -24,7 +24,7 @@
       margin-bottom: 20px;
     }
 
-    .weather-info, .forecast, .radar {
+    .weather-info, .forecast, .hourly, .radar {
       background: rgba(0, 0, 0, 0.2);
       padding: 15px;
       margin-bottom: 20px;
@@ -44,6 +44,21 @@
       border-radius: 10px;
       padding: 10px;
       text-align: center;
+    }
+
+    .hourly-scroll {
+      display: flex;
+      overflow-x: auto;
+      gap: 10px;
+    }
+
+    .hour-box {
+      flex: 0 0 auto;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      min-width: 120px;
     }
 
     .toggle, .search {
@@ -83,6 +98,7 @@
 
     .dark-mode .weather-info,
     .dark-mode .forecast,
+    .dark-mode .hourly,
     .dark-mode .radar {
       background: rgba(255, 255, 255, 0.1);
     }
@@ -111,6 +127,10 @@
       <p>Loading current weather...</p>
     </div>
 
+    <div class="hourly" id="hourlyForecast">
+      <p>Loading hourly forecast...</p>
+    </div>
+
     <div class="forecast" id="forecast">
       <p>Loading 5-day forecast...</p>
     </div>
@@ -136,8 +156,8 @@
     }
 
     function setRadar(lat, lon) {
-      document.getElementById('radarFrame').src =
-        `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&detailLat=${lat}&detailLon=${lon}&zoom=8&level=surface&overlay=radar&menu=&message=true&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1`;
+      const radarUrl = `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&zoom=7&overlay=radar&menu=false&message=false`;
+      document.getElementById('radarFrame').src = radarUrl;
     }
 
     function fetchWeather(city) {
@@ -176,23 +196,47 @@
       fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=${apiKey}&units=imperial`)
         .then(res => res.json())
         .then(data => {
-          const forecastDiv = document.getElementById('forecast');
-          forecastDiv.innerHTML = "<h2>5-Day Forecast</h2><div class='forecast-grid'></div>";
-          const grid = forecastDiv.querySelector('.forecast-grid');
-          const days = data.list.filter((item, index) => index % 8 === 0);
-          days.forEach(day => {
-            const date = new Date(day.dt_txt).toLocaleDateString();
-            const icon = `https://openweathermap.org/img/wn/${day.weather[0].icon}@2x.png`;
-            grid.innerHTML += `
-              <div class="forecast-day">
-                <strong>${date}</strong><br/>
-                <img src="${icon}" alt="icon" /><br/>
-                ${day.main.temp}°F<br/>
-                ${day.weather[0].description}
-              </div>
-            `;
-          });
+          updateHourlyForecast(data.list.slice(0, 6)); // Next 6 intervals = ~18 hours
+          updateDailyForecast(data.list);
         });
+    }
+
+    function updateHourlyForecast(hours) {
+      const container = document.getElementById('hourlyForecast');
+      container.innerHTML = "<h2>Hourly Forecast</h2><div class='hourly-scroll'></div>";
+      const scrollBox = container.querySelector('.hourly-scroll');
+
+      hours.forEach(hour => {
+        const time = new Date(hour.dt_txt).toLocaleTimeString([], { hour: 'numeric', hour12: true });
+        const icon = `https://openweathermap.org/img/wn/${hour.weather[0].icon}@2x.png`;
+        scrollBox.innerHTML += `
+          <div class="hour-box">
+            <strong>${time}</strong><br/>
+            <img src="${icon}" alt="icon" width="40" /><br/>
+            ${hour.main.temp}°F<br/>
+            ${hour.weather[0].main}
+          </div>
+        `;
+      });
+    }
+
+    function updateDailyForecast(dataList) {
+      const forecastDiv = document.getElementById('forecast');
+      forecastDiv.innerHTML = "<h2>5-Day Forecast</h2><div class='forecast-grid'></div>";
+      const grid = forecastDiv.querySelector('.forecast-grid');
+      const days = dataList.filter((item, index) => index % 8 === 0);
+      days.forEach(day => {
+        const date = new Date(day.dt_txt).toLocaleDateString();
+        const icon = `https://openweathermap.org/img/wn/${day.weather[0].icon}@2x.png`;
+        grid.innerHTML += `
+          <div class="forecast-day">
+            <strong>${date}</strong><br/>
+            <img src="${icon}" alt="icon" /><br/>
+            ${day.main.temp}°F<br/>
+            ${day.weather[0].description}
+          </div>
+        `;
+      });
     }
 
     function manualSearch() {
